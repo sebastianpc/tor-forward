@@ -3,14 +3,12 @@ mod hidden_service;
 
 use anyhow::Result;
 use hidden_service::Ports;
- 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     let opts = cli::parse();
 
-    let mut portbuilder  = Ports::builder();
+    let mut portbuilder = Ports::builder();
 
     if opts.expose.is_some() {
         for port in opts.expose.unwrap() {
@@ -32,7 +30,6 @@ async fn main() -> Result<()> {
     }
 
     let ports = portbuilder.build();
-
 
     hidden_service::hidden_forward(opts.service_name.as_str(), ports).await?;
 

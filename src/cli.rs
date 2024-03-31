@@ -9,7 +9,6 @@ use clap::{ArgGroup, Parser};
         .args(&["expose", "forward"]),
 ))]
 pub struct Options {
-
     #[arg(short = 'n', long = "name", default_value = "forwarder")]
     pub service_name: String,
 
@@ -21,7 +20,5 @@ pub struct Options {
 }
 
 pub fn parse() -> Options {
-    let opts = Options::parse();
-
-    opts
+    Options::parse()
 }
