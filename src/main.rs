@@ -1,56 +1,40 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
-use arti_client::*;
-use tor_hsrproxy::{config::{Encapsulation, ProxyAction, ProxyConfigBuilder, ProxyPattern, ProxyRule, TargetAddr}, OnionServiceReverseProxy};
-use tor_hsservice::{config::OnionServiceConfigBuilder, Anonymity};
-use tor_rtcompat::PreferredRuntime;
+mod cli;
+mod hidden_service;
 
 use anyhow::Result;
-
-async fn hidden_forward(service_name: &str) -> Result<()> {
-
-
-    let config = TorClientConfig::default();
-
-    println!("connecting to Tor...");
-    let tor_client = TorClient::create_bootstrapped(config).await?;
-
-    let onion_config = OnionServiceConfigBuilder::default()
-        .nickname(service_name.to_owned().try_into().unwrap())
-        .anonymity(Anonymity::Anonymous)
-        .build()?;
-
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 22);
-
-    let ports = vec![ProxyRule::new(ProxyPattern::one_port(22)?, ProxyAction::Forward(Encapsulation::Simple, TargetAddr::Inet(socket)))];
-    let mut proxy_config = ProxyConfigBuilder::default();
-    proxy_config.set_proxy_ports(ports);
-    let proxy_config = proxy_config.build()?;
-    
-    let proxy = OnionServiceReverseProxy::new(proxy_config);
-
-    let (onion_service, rend_requests) = tor_client.launch_onion_service(onion_config)?;
-
-    println!("serving at: {}", onion_service.onion_name().unwrap());
-    
-    let runtime = PreferredRuntime::current()?;
-
-    proxy.handle_requests(runtime, service_name.to_owned().try_into().unwrap(), rend_requests).await?;
-
-    Ok(())
-
-}
+use hidden_service::Ports;
  
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut handles = vec![];
-    handles.push(tokio::spawn(async {hidden_forward("ssh-proxy").await}));
-    handles.push(tokio::spawn(async {
-        println!("Running after spawn");
-        Ok(())
-    }));
 
-    futures::future::join_all(handles).await;
+    let opts = cli::parse();
+
+    let mut portbuilder  = Ports::builder();
+
+    if opts.expose.is_some() {
+        for port in opts.expose.unwrap() {
+            println!("Forwarding {} to 127.0.0.1:{}4", port, port);
+            portbuilder = portbuilder.expose(port);
+        }
+    }
+
+    if opts.forward.is_some() {
+        for forward in opts.forward.unwrap() {
+            let mut s = forward.split(':');
+
+            let remote = s.next().unwrap().parse::<u16>()?;
+            let local = s.next().unwrap().parse::<u16>()?;
+
+            println!("Forwarding {} to 127.0.0.1:{}", remote, local);
+            portbuilder = portbuilder.forward(remote, local);
+        }
+    }
+
+    let ports = portbuilder.build();
+
+
+    hidden_service::hidden_forward(opts.service_name.as_str(), ports).await?;
+
     Ok(())
 }
