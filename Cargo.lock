@@ -4450,7 +4450,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "torssh"
+name = "torforward"
 version = "0.1.0"
 dependencies = [
  "anyhow",
